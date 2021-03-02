@@ -1112,15 +1112,15 @@ type Info struct {
 }
 
 type meta struct {
-	magic    uint32
-	version  uint32
-	pageSize uint32
-	flags    uint32
-	root     bucket
-	freelist pgid
-	pgid     pgid
-	txid     txid
-	checksum uint64
+	magic    uint32 // magic number，值为“0xED0CDAED”
+	version  uint32 // boltdb的版本号，当前为2
+	pageSize uint32 // boltdb文件的页面大小
+	flags    uint32 // 保留字段
+	root     bucket // 保存boltdb的根bucket的信息
+	freelist pgid   // 保存freelist页面的页面ID
+	pgid     pgid   // 保存当前总的页面数量，即最大页面号+1
+	txid     txid   // 上一次写数据库的事务ID，可以看作是当前boltdb的修改版本号，每次写数据库时加1，只读时不改变
+	checksum uint64 // 校验码，用于校验元数据页面是否出错
 }
 
 // validate checks the marker bytes and version of the meta page to ensure it matches this binary.

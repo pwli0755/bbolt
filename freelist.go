@@ -21,7 +21,7 @@ type pidSet map[pgid]struct{}
 // It also tracks pages that have been freed but are still in use by open transactions.
 type freelist struct {
 	freelistType   FreelistType                // freelist type
-	ids            []pgid                      // all free and available free page ids.
+	ids            []pgid                      // all free and available free page ids. 数据页仅存储该字段
 	allocs         map[pgid]txid               // mapping of txid that allocated a pgid.
 	pending        map[txid]*txPending         // mapping of soon-to-be free page ids by tx.
 	cache          map[pgid]bool               // fast lookup of all free and pending page ids.

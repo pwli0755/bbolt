@@ -28,10 +28,10 @@ const (
 type pgid uint64
 
 type page struct {
-	id       pgid
-	flags    uint16
-	count    uint16
-	overflow uint32
+	id       pgid   // page ID，从0开始
+	flags    uint16 // page type flag
+	count    uint16 // 页面中存储的数据数量，仅在页面类型是branch以及leaf的时候起作用
+	overflow uint32 // 当前页面如果还不够存放数据，就会有后续页面，这个字段表示后续页面的数量
 }
 
 // typ returns a human readable page type string used for debugging.
@@ -101,9 +101,9 @@ func (s pages) Less(i, j int) bool { return s[i].id < s[j].id }
 
 // branchPageElement represents a node on a branch page.
 type branchPageElement struct {
-	pos   uint32
-	ksize uint32
-	pgid  pgid
+	pos   uint32 // 存储键相对于当前页面数据部分的偏移量
+	ksize uint32 // 键的大小
+	pgid  pgid   // 页面ID
 }
 
 // key returns a byte slice of the node key.
@@ -113,10 +113,10 @@ func (n *branchPageElement) key() []byte {
 
 // leafPageElement represents a node on a leaf page.
 type leafPageElement struct {
-	flags uint32
-	pos   uint32
-	ksize uint32
-	vsize uint32
+	flags uint32 // 标志位，为0的时候表示就是普通的叶子节点，而为1的时候表示是子bucket
+	pos   uint32 // 存储键相对于当前页面数据部分的偏移量
+	ksize uint32 // 键的大小
+	vsize uint32 // 存储数据的大小
 }
 
 // key returns a byte slice of the node key.
