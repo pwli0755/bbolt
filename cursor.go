@@ -17,7 +17,7 @@ import (
 // after mutating data.
 type Cursor struct {
 	bucket *Bucket
-	stack  []elemRef
+	stack  []elemRef // 存储递归遍历时中间过程的栈，由于栈是先进后出结构，所以遍历的过程中层次高的在栈的低端
 }
 
 // Bucket returns the bucket that this cursor was created from.
@@ -374,9 +374,9 @@ func (c *Cursor) node() *node {
 
 // elemRef represents a reference to an element on a given page/node.
 type elemRef struct {
-	page  *page
-	node  *node
-	index int
+	page  *page // 页面
+	node  *node // 内存中的页面信息
+	index int   // 保存在当前page、node遍历到了哪个节点
 }
 
 // isLeaf returns whether the ref is pointing at a leaf page/node.

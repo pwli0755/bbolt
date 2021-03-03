@@ -28,18 +28,18 @@ const DefaultFillPercent = 0.5
 // Bucket represents a collection of key/value pairs inside the database.
 type Bucket struct {
 	*bucket
-	tx       *Tx                // the associated transaction
-	buckets  map[string]*Bucket // subbucket cache
-	page     *page              // inline page reference
-	rootNode *node              // materialized node for the root page.
-	nodes    map[pgid]*node     // node cache
+	tx       *Tx                // the associated transaction 当前Bucket关联的事务
+	buckets  map[string]*Bucket // subbucket cache 内存中维护子bucket的映射关系
+	page     *page              // inline page reference 存储inline页面信息
+	rootNode *node              // materialized node for the root page. 该Bucket的B+树根节点指针
+	nodes    map[pgid]*node     // node cache 缓存已经读入内存的page对应的node信息
 
 	// Sets the threshold for filling nodes when they split. By default,
 	// the bucket will fill to 50% but it can be useful to increase this
 	// amount if you know that your write workloads are mostly append-only.
 	//
 	// This is non-persisted across transactions so it must be set in every Tx.
-	FillPercent float64
+	FillPercent float64 // 每个节点的数据量超过该阈值时进行分裂操作
 }
 
 // bucket represents the on-file representation of a bucket.
@@ -47,8 +47,8 @@ type Bucket struct {
 // then its root page can be stored inline in the "value", after the bucket
 // header. In the case of inline buckets, the "root" will be 0.
 type bucket struct {
-	root     pgid   // page id of the bucket's root-level page
-	sequence uint64 // monotonically incrementing, used by NextSequence()
+	root     pgid   // page id of the bucket's root-level page 根节点的page id，0表示为内联 bucket
+	sequence uint64 // monotonically incrementing, used by NextSequence() 单调递增的序列号
 }
 
 // newBucket returns a new bucket associated with a transaction.

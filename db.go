@@ -892,6 +892,7 @@ func (db *DB) pageInBuffer(b []byte, id pgid) *page {
 }
 
 // meta retrieves the current meta page reference.
+// 由于使用两个meta页面，这样两次不同的写事务操作，分别对应这两个meta页面中的一个，假如其中一次失败了，也只是影响了其中一个页面。
 func (db *DB) meta() *meta {
 	// We have to return the meta with the highest txid which doesn't fail
 	// validation. Otherwise, we can cause errors when in fact the database is

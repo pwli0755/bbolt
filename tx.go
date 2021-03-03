@@ -22,12 +22,12 @@ type txid uint64
 // are using them. A long running read transaction can cause the database to
 // quickly grow.
 type Tx struct {
-	writable       bool
-	managed        bool
+	writable       bool // 是否写事务
+	managed        bool // 表示当前的事务操作是否被db托管
 	db             *DB
-	meta           *meta
+	meta           *meta // 开始事务时，会首先从db中初始化meta信息
 	root           Bucket
-	pages          map[pgid]*page
+	pages          map[pgid]*page // 涉及到的page
 	stats          TxStats
 	commitHandlers []func()
 
@@ -37,7 +37,7 @@ type Tx struct {
 	// By default, the flag is unset, which works well for mostly in-memory
 	// workloads. For databases that are much larger than available RAM,
 	// set the flag to syscall.O_DIRECT to avoid trashing the page cache.
-	WriteFlag int
+	WriteFlag int // 复制或移动数据库文件时，指定的文件打开模式
 }
 
 // init initializes the transaction.
