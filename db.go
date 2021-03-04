@@ -125,8 +125,8 @@ type DB struct {
 	file     *os.File
 	dataref  []byte // mmap'ed readonly, write throws SEGV
 	data     *[maxMapSize]byte
-	datasz   int
-	filesz   int // current on disk file size
+	datasz   int // 映射内存的大小
+	filesz   int // current on disk file size 磁盘文件大小
 	meta0    *meta
 	meta1    *meta
 	pageSize int
@@ -245,7 +245,7 @@ func Open(path string, mode os.FileMode, options *Options) (*DB, error) {
 			return nil, err
 		}
 	} else {
-		// Read the first meta page to determine the page size.
+		// Read the first meta page to determine the page size. 0x1000=4096
 		var buf [0x1000]byte
 		// If we can't read the page size, but can read a page, assume
 		// it's the same as the OS or one given -- since that's how the
@@ -319,12 +319,14 @@ func (db *DB) loadFreelist() {
 	})
 }
 
+// freelist 是否已同步磁盘
 func (db *DB) hasSyncedFreelist() bool {
 	return db.meta().freelist != pgidNoFreelist
 }
 
 // mmap opens the underlying memory-mapped file and initializes the meta references.
 // minsz is the minimum size that the new mmap can be.
+// 系统调用，将文件映射为内存并加载meta页
 func (db *DB) mmap(minsz int) error {
 	db.mmaplock.Lock()
 	defer db.mmaplock.Unlock()
@@ -388,6 +390,7 @@ func (db *DB) munmap() error {
 // mmapSize determines the appropriate size for the mmap given the current size
 // of the database. The minimum size is 32KB and doubles until it reaches 1GB.
 // Returns an error if the new mmap size is greater than the max allowed.
+// 预申请一倍的空间，大于1G则预申请多1G
 func (db *DB) mmapSize(size int) (int, error) {
 	// Double the size from 32KB until 1GB.
 	for i := uint(15); i <= 30; i++ {
@@ -537,6 +540,7 @@ func (db *DB) close() error {
 //
 // IMPORTANT: You must close read-only transactions after you are finished or
 // else the database will not reclaim old pages.
+// 这里需要注意，读事务会申请mmap的读锁，可能会阻塞由于页面不足而申请remmap的写事务
 func (db *DB) Begin(writable bool) (*Tx, error) {
 	if writable {
 		return db.beginRWTx()

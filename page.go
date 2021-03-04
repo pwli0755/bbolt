@@ -30,7 +30,7 @@ type pgid uint64
 type page struct {
 	id       pgid   // page ID，从0开始
 	flags    uint16 // page type flag
-	count    uint16 // 页面中存储的数据数量，仅在页面类型是branch以及leaf的时候起作用
+	count    uint16 // 页面中存储的数据数量，仅在页面类型是branch以及leaf的时候起作用| update：对于freelist页面，此值表示freelist列表长度
 	overflow uint32 // 当前页面如果还不够存放数据，就会有后续页面，这个字段表示后续页面的数量
 }
 

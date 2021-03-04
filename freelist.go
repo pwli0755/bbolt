@@ -23,8 +23,8 @@ type freelist struct {
 	freelistType   FreelistType                // freelist type
 	ids            []pgid                      // all free and available free page ids. 数据页仅存储该字段
 	allocs         map[pgid]txid               // mapping of txid that allocated a pgid.
-	pending        map[txid]*txPending         // mapping of soon-to-be free page ids by tx.
-	cache          map[pgid]bool               // fast lookup of all free and pending page ids.
+	pending        map[txid]*txPending         // mapping of soon-to-be free page ids by tx. 存储事务id和其引用page所谓映射关系
+	cache          map[pgid]bool               // fast lookup of all free and pending page ids. 快速查询某页是否空闲
 	freemaps       map[uint64]pidSet           // key is the size of continuous pages(span), value is a set which contains the starting pgids of same size
 	forwardMap     map[pgid]uint64             // key is start pgid, value is its span size
 	backwardMap    map[pgid]uint64             // key is end pgid, value is its span size
@@ -384,6 +384,7 @@ func (f *freelist) noSyncReload(pgids []pgid) {
 }
 
 // reindex rebuilds the free cache based on available and pending free lists.
+// 跟进空闲列表和pending列表更新cache
 func (f *freelist) reindex() {
 	ids := f.getFreePageIDs()
 	f.cache = make(map[pgid]bool, len(ids))

@@ -626,6 +626,7 @@ func (tx *Tx) forEachPage(pgid pgid, depth int, fn func(*page, int)) {
 	fn(p, depth)
 
 	// Recursively loop over children.
+	// 如果是branch节点，则递归遍历子节点
 	if (p.flags & branchPageFlag) != 0 {
 		for i := 0; i < int(p.count); i++ {
 			elem := p.branchPageElement(uint16(i))
