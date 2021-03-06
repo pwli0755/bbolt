@@ -135,6 +135,7 @@ func (b *Bucket) openBucket(value []byte) *Bucket {
 
 	// If this is a writable transaction then we need to copy the bucket entry.
 	// Read-only transactions can point directly at the mmap entry.
+	// 写时拷贝
 	if b.tx.writable && !unaligned {
 		child.bucket = &bucket{}
 		*child.bucket = *(*bucket)(unsafe.Pointer(&value[0]))
@@ -143,6 +144,7 @@ func (b *Bucket) openBucket(value []byte) *Bucket {
 	}
 
 	// Save a reference to the inline page if the bucket is inline.
+	// 加载inline bucket的页信息
 	if child.root == 0 {
 		child.page = (*page)(unsafe.Pointer(&value[bucketHeaderSize]))
 	}
@@ -705,6 +707,7 @@ func (b *Bucket) dereference() {
 func (b *Bucket) pageNode(id pgid) (*page, *node) {
 	// Inline buckets have a fake page embedded in their value so treat them
 	// differently. We'll return the rootNode (if available) or the fake page.
+	// 处理内联bucket，返回其根节点或者当前页
 	if b.root == 0 {
 		if id != 0 {
 			panic(fmt.Sprintf("inline bucket non-zero page access(2): %d != 0", id))

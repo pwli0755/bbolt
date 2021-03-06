@@ -155,6 +155,7 @@ func (c *Cursor) seek(seek []byte) (key []byte, value []byte, flags uint32) {
 	_assert(c.bucket.tx.db != nil, "tx closed")
 
 	// Start from root page/node and traverse to correct page.
+	// 清空遍历历史记录并从根节点开始遍历
 	c.stack = c.stack[:0]
 	c.search(seek, c.bucket.root)
 
@@ -245,7 +246,9 @@ func (c *Cursor) next() (key []byte, value []byte, flags uint32) {
 
 // search recursively performs a binary search against a given page/node until it finds a given key.
 func (c *Cursor) search(key []byte, pgid pgid) {
+	// 加载pgid号页，优先从node（内存中加载），如果内存中没有，则直接从mmap映射的文件中加载
 	p, n := c.bucket.pageNode(pgid)
+	// 找到page但非内部节点且非叶子节点直接panic
 	if p != nil && (p.flags&(branchPageFlag|leafPageFlag)) == 0 {
 		panic(fmt.Sprintf("invalid page type: %d: %x", p.id, p.flags))
 	}
@@ -254,39 +257,55 @@ func (c *Cursor) search(key []byte, pgid pgid) {
 
 	// If we're on a leaf page/node then find the specific node.
 	if e.isLeaf() {
+		// 如果是叶子节点，直接二分查找该节点
 		c.nsearch(key)
 		return
 	}
 
+	// 如果不是叶子节点，继续向下查找, c.stack携带了查找的路径信息
+	// 依旧是优先从node中查找
 	if n != nil {
 		c.searchNode(key, n)
 		return
 	}
+	// 用户态内存中没有，直接从mmap映射的内存中查找
 	c.searchPage(key, p)
 }
 
+// 从分支节点中查找指定的元素
 func (c *Cursor) searchNode(key []byte, n *node) {
 	var exact bool
+	// index表示当前n.inodes中第一个不小于key的元素的下标
 	index := sort.Search(len(n.inodes), func(i int) bool {
 		// TODO(benbjohnson): Optimize this range search. It's a bit hacky right now.
 		// sort.Search() finds the lowest index where f() != -1 but we need the highest index.
 		ret := bytes.Compare(n.inodes[i].key, key)
+		// 如果精确匹配到，直接标记
 		if ret == 0 {
 			exact = true
 		}
+		// 如果n.inodes[i]大于或等于key，则返回True表示不用再找了
 		return ret != -1
 	})
+	// BoltDB的B+树有点特殊，每个分支中的元素个数和子分支个数是相等的
+	// 如果精确找到的话，那么直接去下标为index的元素的子分支查找
+	// 如果未精确查到，但是index>0, 说明第index个元素已经大于key，可以去第index-1个元素的子分支中查找
+	// 如果index==0且未精确查到，其实应该认为该key不存在了；但源码的意思是依旧递归查下去...
 	if !exact && index > 0 {
 		index--
 	}
+	// 更新本次查找到的结果
 	c.stack[len(c.stack)-1].index = index
 
 	// Recursively search to the next page.
+	// 当前是分支节点，so recurse 直到叶子节点
 	c.search(key, n.inodes[index].pgid)
 }
 
+// 从分支节点中查找指定的元素
 func (c *Cursor) searchPage(key []byte, p *page) {
 	// Binary search for the correct range.
+	// 加载该页中的元素
 	inodes := p.branchPageElements()
 
 	var exact bool
@@ -310,11 +329,15 @@ func (c *Cursor) searchPage(key []byte, p *page) {
 
 // nsearch searches the leaf node on the top of the stack for a key.
 func (c *Cursor) nsearch(key []byte) {
+	// 取出栈顶元素
 	e := &c.stack[len(c.stack)-1]
 	p, n := e.page, e.node
 
 	// If we have a node then search its inodes.
+	// 优先使用node（内存）
 	if n != nil {
+		// 二分查找第一个不小于key的元素的index，注意：当前遍历的元素等于或大于key均满足查找条件
+		// 所以返回的index不一定表示找到了，还需要比较inodes[index]和key是否相等
 		index := sort.Search(len(n.inodes), func(i int) bool {
 			return bytes.Compare(n.inodes[i].key, key) != -1
 		})
@@ -323,6 +346,7 @@ func (c *Cursor) nsearch(key []byte) {
 	}
 
 	// If we have a page then search its leaf elements.
+	// 若只有page，则从page中加载子元素
 	inodes := p.leafPageElements()
 	index := sort.Search(int(p.count), func(i int) bool {
 		return bytes.Compare(inodes[i].key(), key) != -1
@@ -340,6 +364,7 @@ func (c *Cursor) keyValue() ([]byte, []byte, uint32) {
 	}
 
 	// Retrieve value from node.
+	// 优先从node获取
 	if ref.node != nil {
 		inode := &ref.node.inodes[ref.index]
 		return inode.key, inode.value, inode.flags

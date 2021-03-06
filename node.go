@@ -592,6 +592,7 @@ func (s nodes) Less(i, j int) bool {
 // inode represents an internal node inside of a node.
 // It can be used to point to elements in a page or point
 // to an element which hasn't been added to a page yet.
+// 内存中表示的元素，相当于 page 中的 leafPageElement
 type inode struct {
 	flags uint32 // 用于 leaf node，区分是正常 value 还是 subbucket
 	pgid  pgid   // 用于 branch node, 子节点的 page id
