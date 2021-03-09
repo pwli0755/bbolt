@@ -9,15 +9,15 @@ import (
 
 // node represents an in-memory, deserialized page.
 type node struct {
-	bucket     *Bucket
-	isLeaf     bool
-	unbalanced bool
+	bucket     *Bucket // bucket 指针
+	isLeaf     bool    // 是否为叶子
+	unbalanced bool    // 是否不平衡
 	spilled    bool
-	key        []byte
-	pgid       pgid
-	parent     *node
-	children   nodes
-	inodes     inodes
+	key        []byte // key, n.key = n.inodes[0].key
+	pgid       pgid   // 对应的pageid
+	parent     *node  // 父node指针
+	children   nodes  // 子node列表
+	inodes     inodes // 当前node中的元素
 }
 
 // root returns the top-level node this node is attached to.
@@ -37,6 +37,7 @@ func (n *node) minKeys() int {
 }
 
 // size returns the size of the node after serialization.
+// 返回node序列化所需的空间
 func (n *node) size() int {
 	sz, elsz := pageHeaderSize, n.pageElementSize()
 	for i := 0; i < len(n.inodes); i++ {
@@ -123,15 +124,20 @@ func (n *node) put(oldKey, newKey, value []byte, pgid pgid, flags uint32) {
 	}
 
 	// Find insertion index.
+	// 二分查找第一个不小于oldkey的元素的下标
 	index := sort.Search(len(n.inodes), func(i int) bool { return bytes.Compare(n.inodes[i].key, oldKey) != -1 })
 
 	// Add capacity and shift nodes if we don't have an exact match and need to insert.
+	// 判断是否精确匹配
 	exact := (len(n.inodes) > 0 && index < len(n.inodes) && bytes.Equal(n.inodes[index].key, oldKey))
+	// 如果oldKey不存在，则新生成一个inode并插入到适当的位置(index左侧)
 	if !exact {
 		n.inodes = append(n.inodes, inode{})
+		// 移动切片使得新生成的inode放置在index处
 		copy(n.inodes[index+1:], n.inodes[index:])
 	}
 
+	// 取得inode并更新
 	inode := &n.inodes[index]
 	inode.flags = flags
 	inode.key = newKey
@@ -154,12 +160,15 @@ func (n *node) del(key []byte) {
 	n.inodes = append(n.inodes[:index], n.inodes[index+1:]...)
 
 	// Mark the node as needing rebalancing.
+	// 删除元素需要rebalance
 	n.unbalanced = true
 }
 
 // read initializes the node from a page.
+// read将page实例化为node
 func (n *node) read(p *page) {
 	n.pgid = p.id
+	// 判断是否是叶子
 	n.isLeaf = ((p.flags & leafPageFlag) != 0)
 	n.inodes = make(inodes, int(p.count))
 
@@ -168,6 +177,7 @@ func (n *node) read(p *page) {
 		if n.isLeaf {
 			elem := p.leafPageElement(uint16(i))
 			inode.flags = elem.flags
+			// key value 切片均指向mmap映射的内存
 			inode.key = elem.key()
 			inode.value = elem.value()
 		} else {
@@ -188,6 +198,7 @@ func (n *node) read(p *page) {
 }
 
 // write writes the items onto one or more pages.
+// write 将内存node刷入page
 func (n *node) write(p *page) {
 	// Initialize page.
 	if n.isLeaf {
@@ -195,7 +206,7 @@ func (n *node) write(p *page) {
 	} else {
 		p.flags |= branchPageFlag
 	}
-
+	// 单节点最多65535个元素
 	if len(n.inodes) >= 0xFFFF {
 		panic(fmt.Sprintf("inode overflow: %d (pgid=%d)", len(n.inodes), p.id))
 	}
@@ -208,6 +219,7 @@ func (n *node) write(p *page) {
 
 	// Loop over each item and write it to the page.
 	// off tracks the offset into p of the start of the next data.
+	// off 表示页头+分支/叶子元信息 所占用的空间
 	off := unsafe.Sizeof(*p) + n.pageElementSize()*uintptr(len(n.inodes))
 	for i, item := range n.inodes {
 		_assert(len(item.key) > 0, "write: zero-length inode key")
@@ -215,10 +227,12 @@ func (n *node) write(p *page) {
 		// Create a slice to write into of needed size and advance
 		// byte pointer for next iteration.
 		sz := len(item.key) + len(item.value)
+		// 切片b表示当前key/value所占用的内存段
 		b := unsafeByteSlice(unsafe.Pointer(p), off, 0, sz)
 		off += uintptr(sz)
 
 		// Write the page element.
+		// 将分支/叶子的元信息写入
 		if n.isLeaf {
 			elem := p.leafPageElement(uint16(i))
 			elem.pos = uint32(uintptr(unsafe.Pointer(&b[0])) - uintptr(unsafe.Pointer(elem)))
@@ -234,6 +248,7 @@ func (n *node) write(p *page) {
 		}
 
 		// Write data for the element to the end of the page.
+		// 将值写入page
 		l := copy(b, item.key)
 		copy(b[l:], item.value)
 	}
@@ -266,6 +281,7 @@ func (n *node) split(pageSize uintptr) []*node {
 
 // splitTwo breaks up a node into two smaller nodes, if appropriate.
 // This should only be called from the split() function.
+// 如果当前node内元素个数大于2, 且所占用空间大于给定的pageSize, 才执行分裂
 func (n *node) splitTwo(pageSize uintptr) (*node, *node) {
 	// Ignore the split if the page doesn't have at least enough nodes for
 	// two pages or if the nodes can fit in a single page.
@@ -308,6 +324,7 @@ func (n *node) splitTwo(pageSize uintptr) (*node, *node) {
 // splitIndex finds the position where a page will fill a given threshold.
 // It returns the index as well as the size of the first page.
 // This is only be called from split().
+// 找到分裂点元素的下标
 func (n *node) splitIndex(threshold int) (index, sz uintptr) {
 	sz = pageHeaderSize
 
@@ -315,6 +332,7 @@ func (n *node) splitIndex(threshold int) (index, sz uintptr) {
 	for i := 0; i < len(n.inodes)-minKeysPerPage; i++ {
 		index = uintptr(i)
 		inode := n.inodes[i]
+		// 元素大小，包括元信息占用空间和key value占用空间
 		elsize := n.pageElementSize() + uintptr(len(inode.key)) + uintptr(len(inode.value))
 
 		// If we have at least the minimum number of keys and adding another
@@ -341,6 +359,7 @@ func (n *node) spill() error {
 	// Spill child nodes first. Child nodes can materialize sibling nodes in
 	// the case of split-merge so we cannot use a range loop. We have to check
 	// the children size on every loop iteration.
+	// 按照node中首元素的大小排序
 	sort.Sort(n.children)
 	for i := 0; i < len(n.children); i++ {
 		if err := n.children[i].spill(); err != nil {
@@ -402,6 +421,7 @@ func (n *node) spill() error {
 
 // rebalance attempts to combine the node with sibling nodes if the node fill
 // size is below a threshold or if there are not enough keys.
+// rebalance 合并空闲页
 func (n *node) rebalance() {
 	if !n.unbalanced {
 		return
@@ -412,6 +432,7 @@ func (n *node) rebalance() {
 	n.bucket.tx.stats.Rebalance++
 
 	// Ignore if node is above threshold (25%) and has enough keys.
+	// 如果包含两个及以上的元素, 且页面使用率大于25%, 则忽略
 	var threshold = n.bucket.tx.db.pageSize / 4
 	if n.size() > threshold && len(n.inodes) > n.minKeys() {
 		return
@@ -592,7 +613,7 @@ func (s nodes) Less(i, j int) bool {
 // inode represents an internal node inside of a node.
 // It can be used to point to elements in a page or point
 // to an element which hasn't been added to a page yet.
-// 内存中表示的元素，相当于 page 中的 leafPageElement
+// 内存中表示的元素，相当于 page 中的 leafPageElement 或 branchPageElement
 type inode struct {
 	flags uint32 // 用于 leaf node，区分是正常 value 还是 subbucket
 	pgid  pgid   // 用于 branch node, 子节点的 page id

@@ -9,6 +9,7 @@ import (
 
 const pageHeaderSize = unsafe.Sizeof(page{})
 
+// 每个page至少2个key
 const minKeysPerPage = 2
 
 const branchPageElementSize = unsafe.Sizeof(branchPageElement{})
@@ -101,7 +102,7 @@ func (s pages) Less(i, j int) bool { return s[i].id < s[j].id }
 
 // branchPageElement represents a node on a branch page.
 type branchPageElement struct {
-	pos   uint32 // 存储键相对于当前页面数据部分的偏移量
+	pos   uint32 // 存储 key 相对于当前分支元信息的偏移量
 	ksize uint32 // 键的大小
 	pgid  pgid   // 页面ID
 }
@@ -114,7 +115,7 @@ func (n *branchPageElement) key() []byte {
 // leafPageElement represents a node on a leaf page.
 type leafPageElement struct {
 	flags uint32 // 标志位，为0的时候表示就是普通的叶子节点，而为1的时候表示是子bucket
-	pos   uint32 // 存储键相对于当前页面数据部分的偏移量
+	pos   uint32 // 存储 key/value相对于当前叶子元信息的偏移量
 	ksize uint32 // 键的大小
 	vsize uint32 // 存储数据的大小
 }
