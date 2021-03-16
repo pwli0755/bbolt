@@ -8,6 +8,8 @@ import (
 
 // txPending holds a list of pgids and corresponding allocation txns
 // that are pending to be freed.
+// txid 相当于版本号，只有低版本的读事务才有可能访问到高版本写事务释放的 node
+// 当没有读事务的 txid 比该写事务的 txid 小时，就能释放 pending page
 type txPending struct {
 	ids              []pgid
 	alloctx          []txid // txids allocating the ids
@@ -21,9 +23,9 @@ type pidSet map[pgid]struct{}
 // It also tracks pages that have been freed but are still in use by open transactions.
 type freelist struct {
 	freelistType   FreelistType                // freelist type
-	ids            []pgid                      // all free and available free page ids. 数据页仅存储该字段
+	ids            []pgid                      // all free and available free page ids. 数据页仅存储该字段，维护了可以用于分配的 page id
 	allocs         map[pgid]txid               // mapping of txid that allocated a pgid.
-	pending        map[txid]*txPending         // mapping of soon-to-be free page ids by tx. 存储事务id和其引用page所谓映射关系
+	pending        map[txid]*txPending         // mapping of soon-to-be free page ids by tx. 维护了每个写事务释放的 page id
 	cache          map[pgid]bool               // fast lookup of all free and pending page ids. 快速查询某页是否空闲
 	freemaps       map[uint64]pidSet           // key is the size of continuous pages(span), value is a set which contains the starting pgids of same size
 	forwardMap     map[pgid]uint64             // key is start pgid, value is its span size

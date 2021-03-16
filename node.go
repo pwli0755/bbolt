@@ -13,7 +13,7 @@ type node struct {
 	isLeaf     bool    // 是否为叶子
 	unbalanced bool    // 是否不平衡
 	spilled    bool
-	key        []byte // key, n.key = n.inodes[0].key
+	key        []byte // key, n.key = n.inodes[0].key 该 node 的起始 key
 	pgid       pgid   // 对应的pageid
 	parent     *node  // 父node指针
 	children   nodes  // 子node列表

@@ -611,6 +611,7 @@ func (db *DB) beginRWTx() (*Tx, error) {
 	t := &Tx{writable: true}
 	t.init(db)
 	db.rwtx = t
+	// 在创建写事务时，会找到 db.txs 中最小的 txid，释放 freelist.pending 中所有 txid 小于它的 pending page
 	db.freePages()
 	return t, nil
 }
@@ -921,6 +922,8 @@ func (db *DB) meta() *meta {
 }
 
 // allocate returns a contiguous block of memory starting at a given page.
+// 这里的分配 page 不是真的分配文件中某一 page 来写，而是分配了一个 buffer 和起始的 page id
+// 首先将 node 的信息写入这个 buffer，之后统一的写入 page id 对应的文件位置
 func (db *DB) allocate(txid txid, count int) (*page, error) {
 	// Allocate a temporary buffer for the page.
 	var buf []byte

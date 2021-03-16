@@ -104,7 +104,7 @@ func (s pages) Less(i, j int) bool { return s[i].id < s[j].id }
 type branchPageElement struct {
 	pos   uint32 // 存储 key 相对于当前分支元信息的偏移量
 	ksize uint32 // 键的大小
-	pgid  pgid   // 页面ID
+	pgid  pgid   // 子节点页面ID
 }
 
 // key returns a byte slice of the node key.
