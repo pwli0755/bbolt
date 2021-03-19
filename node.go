@@ -281,7 +281,7 @@ func (n *node) split(pageSize uintptr) []*node {
 
 // splitTwo breaks up a node into two smaller nodes, if appropriate.
 // This should only be called from the split() function.
-// 如果当前node内元素个数大于2, 且所占用空间大于给定的pageSize, 才执行分裂
+// 如果当前node内元素个数大于4, 且所占用空间大于给定的pageSize, 才执行分裂
 func (n *node) splitTwo(pageSize uintptr) (*node, *node) {
 	// Ignore the split if the page doesn't have at least enough nodes for
 	// two pages or if the nodes can fit in a single page.
